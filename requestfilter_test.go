@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	//nolint:depguard
 	"github.com/aveq-research/requestfilter"
 )
 
