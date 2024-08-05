@@ -1,0 +1,11 @@
+displayName: Request Filter
+type: middleware
+iconPath: .assets/icon.png
+
+import: github.com/aveq-research/requestfilter
+
+summary: 'A request filter for Traefik'
+
+testData:
+  filterRegexes:
+    - "foo"
