@@ -1,6 +1,6 @@
 displayName: Request Filter
 type: middleware
-iconPath: .assets/icon.png
+# iconPath: .assets/icon.png
 
 import: github.com/aveq-research/requestfilter
 
