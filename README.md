@@ -91,7 +91,8 @@ This configuration will block requests that:
 To set up the development environment:
 
 1. Clone the repository
-2. Use `go test ./...` to run the tests
+2. Use `make` to build and lint the project
+3. Use `make test` to run the tests
 
 ## License
 

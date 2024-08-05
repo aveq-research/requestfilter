@@ -138,8 +138,8 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
   git add "$VERSION_FILE"
 
   # bump initially but to not push yet
-  git commit --no-verify -m "bump version to ${new_version}."
-  git tag -a -m "Tag version ${new_version}." "v$new_version"
+  git commit --no-verify -m "bump version to ${new_version}"
+  git tag -a -m "Tag version ${new_version}" "v$new_version"
 
   # generate the changelog
   _info "Generating changelog ..."
@@ -148,7 +148,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
   # add the changelog
   git add CHANGELOG.md
   git commit --no-verify --amend --no-edit
-  git tag -a -f -m "Tag version ${new_version}." "v$new_version"
+  git tag -a -f -m "Tag version ${new_version}" "v$new_version"
 
   # push to remote
   _info "Pushing to remote ..."
