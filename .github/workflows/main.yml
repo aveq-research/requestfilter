@@ -20,6 +20,9 @@ jobs:
         working-directory: ${{ github.workspace }}/go/src/github.com/${{ github.repository }}
 
     steps:
+      - name: Cancel Previous Runs
+        uses: styfle/cancel-workflow-action
+
       # https://github.com/marketplace/actions/setup-go-environment
       - name: Set up Go ${{ env.GO_VERSION }}
         uses: actions/setup-go@v2
