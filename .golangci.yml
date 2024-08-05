@@ -61,6 +61,7 @@ linters:
     - gomnd
     - forbidigo
     - varnamelen
+    - errorlint
 
 issues:
   exclude-use-default: false

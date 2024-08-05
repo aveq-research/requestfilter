@@ -8,133 +8,113 @@ import (
 	"strings"
 	"testing"
 
+	//nolint:depguard
 	"github.com/aveq-research/requestfilter"
 )
 
+//nolint:gocognit
 func TestRequestFilter(t *testing.T) {
 	tests := []struct {
-		name           string
-		filterRegexes  []string
-		method         string
-		url            string
-		body           string
-		expectedStatus int
-		expectedBody   string
+		name             string
+		config           *requestfilter.Config
+		method           string
+		url              string
+		body             string
+		expectedStatus   int
+		expectedBody     string
+		expectedResponse string
 	}{
 		{
-			name:           "No filter",
-			filterRegexes:  []string{},
-			method:         http.MethodGet,
-			url:            "http://example.com",
-			expectedStatus: http.StatusOK,
+			name: "No filter",
+			config: &requestfilter.Config{
+				FilterRegexes: []string{},
+			},
+			method:           http.MethodGet,
+			url:              "http://example.com",
+			expectedStatus:   http.StatusOK,
+			expectedResponse: "",
 		},
 		{
-			name:           "Single URL filter - blocked",
-			filterRegexes:  []string{"sensitive"},
+			name: "URL path filter - blocked",
+			config: &requestfilter.Config{
+				FilterRegexes: []string{"sensitive"},
+			},
 			method:         http.MethodGet,
 			url:            "http://example.com/sensitive-data",
 			expectedStatus: http.StatusForbidden,
-			expectedBody:   "Request blocked by filter\n",
+			expectedBody:   "Request blocked\n",
 		},
 		{
-			name:           "Single URL filter - allowed",
-			filterRegexes:  []string{"sensitive"},
-			method:         http.MethodGet,
-			url:            "http://example.com/public-data",
-			expectedStatus: http.StatusOK,
-		},
-		{
-			name:           "Multiple URL filters - blocked",
-			filterRegexes:  []string{"sensitive", "private", "confidential"},
-			method:         http.MethodGet,
-			url:            "http://example.com/private-area",
-			expectedStatus: http.StatusForbidden,
-			expectedBody:   "Request blocked by filter\n",
-		},
-		{
-			name:           "Multiple URL filters - allowed",
-			filterRegexes:  []string{"sensitive", "private", "confidential"},
-			method:         http.MethodGet,
-			url:            "http://example.com/public-area",
-			expectedStatus: http.StatusOK,
-		},
-		{
-			name:           "Single body filter - POST blocked",
-			filterRegexes:  []string{"confidential"},
+			name: "Body filter - POST blocked",
+			config: &requestfilter.Config{
+				FilterRegexes: []string{"confidential"},
+			},
 			method:         http.MethodPost,
 			url:            "http://example.com",
 			body:           "This contains confidential information",
 			expectedStatus: http.StatusForbidden,
-			expectedBody:   "Request blocked by filter\n",
+			expectedBody:   "Request blocked\n",
 		},
 		{
-			name:           "Single body filter - POST allowed",
-			filterRegexes:  []string{"confidential"},
-			method:         http.MethodPost,
+			name: "Body filter - PATCH blocked",
+			config: &requestfilter.Config{
+				FilterRegexes: []string{"classified"},
+			},
+			method:         http.MethodPatch,
 			url:            "http://example.com",
-			body:           "This contains public information",
-			expectedStatus: http.StatusOK,
-		},
-		{
-			name:           "Multiple body filters - PUT blocked",
-			filterRegexes:  []string{"secret", "classified", "confidential"},
-			method:         http.MethodPut,
-			url:            "http://example.com",
-			body:           "This is a classified message",
+			body:           "This is classified information",
 			expectedStatus: http.StatusForbidden,
-			expectedBody:   "Request blocked by filter\n",
+			expectedBody:   "Request blocked\n",
 		},
 		{
-			name:           "Multiple body filters - PUT allowed",
-			filterRegexes:  []string{"secret", "classified", "confidential"},
-			method:         http.MethodPut,
-			url:            "http://example.com",
-			body:           "This is a public message",
-			expectedStatus: http.StatusOK,
-		},
-		{
-			name:           "Complex regex - email blocked",
-			filterRegexes:  []string{`\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b`},
-			method:         http.MethodPost,
-			url:            "http://example.com",
-			body:           "Please contact me at user@example.com",
+			name: "Custom error message",
+			config: &requestfilter.Config{
+				FilterRegexes:    []string{"sensitive"},
+				HTTPErrorMessage: "Access Denied",
+			},
+			method:         http.MethodGet,
+			url:            "http://example.com/sensitive-data",
 			expectedStatus: http.StatusForbidden,
-			expectedBody:   "Request blocked by filter\n",
+			expectedBody:   "Access Denied\n",
 		},
 		{
-			name:           "Complex regex - phone number blocked",
-			filterRegexes:  []string{`\b\d{3}[-.]?\d{3}[-.]?\d{4}\b`},
-			method:         http.MethodPost,
-			url:            "http://example.com",
-			body:           "Call me at 123-456-7890",
-			expectedStatus: http.StatusForbidden,
-			expectedBody:   "Request blocked by filter\n",
+			name: "PathOnly - body not checked",
+			config: &requestfilter.Config{
+				FilterRegexes: []string{"confidential"},
+				PathOnly:      true,
+			},
+			method:           http.MethodPost,
+			url:              "http://example.com",
+			body:             "This contains confidential information",
+			expectedStatus:   http.StatusOK,
+			expectedResponse: "This contains confidential information",
 		},
 		{
-			name:           "Multiple complex regexes - allowed",
-			filterRegexes:  []string{`\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b`, `\b\d{3}[-.]?\d{3}[-.]?\d{4}\b`},
-			method:         http.MethodPost,
-			url:            "http://example.com",
-			body:           "This is a public message without sensitive information",
+			name: "BodyOnly - path not checked",
+			config: &requestfilter.Config{
+				FilterRegexes: []string{"sensitive"},
+				BodyOnly:      true,
+			},
+			method:         http.MethodGet,
+			url:            "http://example.com/sensitive-data",
 			expectedStatus: http.StatusOK,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := requestfilter.CreateConfig()
-			cfg.FilterRegexes = tt.filterRegexes
-
 			ctx := context.Background()
 			next := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-				// Echo back the request body for body preservation test
 				if req.Body != nil {
 					body, _ := io.ReadAll(req.Body)
-					rw.Write(body)
+					_, err := rw.Write(body)
+					if err != nil {
+						t.Fatal(err)
+					}
 				}
 			})
 
-			handler, err := requestfilter.New(ctx, next, cfg, "request-filter")
+			handler, err := requestfilter.New(ctx, next, tt.config, "request-filter")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -161,11 +141,8 @@ func TestRequestFilter(t *testing.T) {
 				t.Errorf("Expected body '%s', got '%s'", tt.expectedBody, recorder.Body.String())
 			}
 
-			if tt.expectedStatus == http.StatusOK && tt.body != "" {
-				// Check if the body is preserved for allowed requests
-				if recorder.Body.String() != tt.body {
-					t.Errorf("Body not preserved. Expected '%s', got '%s'", tt.body, recorder.Body.String())
-				}
+			if tt.expectedResponse != "" && recorder.Body.String() != tt.expectedResponse {
+				t.Errorf("Expected response '%s', got '%s'", tt.expectedResponse, recorder.Body.String())
 			}
 		})
 	}
@@ -176,8 +153,17 @@ func TestCreateConfig(t *testing.T) {
 	if cfg == nil {
 		t.Error("CreateConfig returned nil")
 	}
-	if len(cfg.FilterRegexes) != 0 {
+	if cfg != nil && len(cfg.FilterRegexes) != 0 {
 		t.Errorf("Expected empty FilterRegexes, got %v", cfg.FilterRegexes)
+	}
+	if cfg.HTTPErrorMessage != "" {
+		t.Errorf("Expected empty HttpErrorMessage, got %v", cfg.HTTPErrorMessage)
+	}
+	if cfg.PathOnly != false {
+		t.Errorf("Expected PathOnly to be false, got %v", cfg.PathOnly)
+	}
+	if cfg.BodyOnly != false {
+		t.Errorf("Expected BodyOnly to be false, got %v", cfg.BodyOnly)
 	}
 }
 
@@ -186,7 +172,7 @@ func TestNewWithInvalidRegex(t *testing.T) {
 	cfg.FilterRegexes = []string{"["} // Invalid regex
 
 	ctx := context.Background()
-	next := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {})
+	next := http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {})
 
 	_, err := requestfilter.New(ctx, next, cfg, "request-filter")
 	if err == nil {

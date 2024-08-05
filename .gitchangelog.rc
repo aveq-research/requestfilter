@@ -1,0 +1,37 @@
+output_engine = mustache("markdown")
+tag_filter_regexp = r'^v[0-9]+\.[0-9]+(\.[0-9]+)?$'
+
+section_regexps = [
+    ('Fix', [
+        r'^fix(\([^\)]+\))?\s*:\s*([^\n]*)$',  # Matches "fix:" and "fix(scope):"
+    ]),
+    ('Feature', [
+        r'^feat(\([^\)]+\))?\s*:\s*([^\n]*)$',  # Matches "feat:" and "feat(scope):"
+    ]),
+    ('Build', [
+        r'^build(\([^\)]+\))?\s*:\s*([^\n]*)$',  # Matches "build:" and "build(scope):"
+    ]),
+    ('Chore', [
+        r'^chore(\([^\)]+\))?\s*:\s*([^\n]*)$',  # Matches "chore:" and "chore(scope):"
+    ]),
+    ('CI', [
+        r'^ci(\([^\)]+\))?\s*:\s*([^\n]*)$',  # Matches "ci:" and "ci(scope):"
+    ]),
+    ('Docs', [
+        r'^docs(\([^\)]+\))?\s*:\s*([^\n]*)$',  # Matches "docs:" and "docs(scope):"
+    ]),
+    ('Style', [
+        r'^style(\([^\)]+\))?\s*:\s*([^\n]*)$',  # Matches "style:" and "style(scope):"
+    ]),
+    ('Refactor', [
+        r'^refactor(\([^\)]+\))?\s*:\s*([^\n]*)$',  # Matches "refactor:" and "refactor(scope):"
+    ]),
+    ('Performance', [
+        r'^perf(\([^\)]+\))?\s*:\s*([^\n]*)$',  # Matches "perf:" and "perf(scope):"
+    ]),
+    ('Test', [
+        r'^test(\([^\)]+\))?\s*:\s*([^\n]*)$',  # Matches "test:" and "test(scope):"
+    ]),
+    ('Other', None  # This will match all other lines not captured above
+    ),
+]

@@ -1,3 +1,4 @@
+// Package requestfilter provides a Traefik middleware for filtering HTTP requests.
 package requestfilter
 
 import (
@@ -11,26 +12,35 @@ import (
 
 // Config the plugin configuration.
 type Config struct {
-	FilterRegexes []string `json:"filterRegexes,omitempty"`
+	FilterRegexes    []string `json:"filterRegexes,omitempty"`
+	HTTPErrorMessage string   `json:"httpErrorMessage,omitempty"`
+	PathOnly         bool     `json:"pathOnly,omitempty"`
+	BodyOnly         bool     `json:"bodyOnly,omitempty"`
 }
 
 // CreateConfig creates the default plugin configuration.
 func CreateConfig() *Config {
 	return &Config{
-		FilterRegexes: []string{},
+		FilterRegexes:    []string{},
+		HTTPErrorMessage: "",
+		PathOnly:         false,
+		BodyOnly:         false,
 	}
 }
 
 // RequestFilter a request filtering plugin.
 type RequestFilter struct {
-	next          http.Handler
-	name          string
-	filterRegexes []*regexp.Regexp
+	next             http.Handler
+	name             string
+	filterRegexes    []*regexp.Regexp
+	httpErrorMessage string
+	pathOnly         bool
+	bodyOnly         bool
 }
 
 // New creates a new RequestFilter plugin.
-func New(ctx context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
-	var regexes []*regexp.Regexp
+func New(_ context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
+	regexes := make([]*regexp.Regexp, 0, len(config.FilterRegexes))
 	for _, pattern := range config.FilterRegexes {
 		regex, err := regexp.Compile(pattern)
 		if err != nil {
@@ -39,56 +49,62 @@ func New(ctx context.Context, next http.Handler, config *Config, name string) (h
 		regexes = append(regexes, regex)
 	}
 
+	// validate that at only one of pathOnly and bodyOnly is set
+	if config.PathOnly && config.BodyOnly {
+		//nolint:perfsprint
+		return nil, fmt.Errorf("only one of pathOnly and bodyOnly can be set")
+	}
+
 	return &RequestFilter{
-		next:          next,
-		name:          name,
-		filterRegexes: regexes,
+		next:             next,
+		name:             name,
+		filterRegexes:    regexes,
+		httpErrorMessage: config.HTTPErrorMessage,
+		pathOnly:         config.PathOnly,
+		bodyOnly:         config.BodyOnly,
 	}, nil
 }
 
 func (r *RequestFilter) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	// os.Stdout.WriteString(fmt.Sprintf("RequestFilter: Processing request for URL: %s\n", req.URL.String()))
-
-	// Check if we need to filter the request
+	//nolint:nestif
 	if len(r.filterRegexes) > 0 {
-		// os.Stdout.WriteString(fmt.Sprintf("RequestFilter: Number of regexes: %d\n", len(r.filterRegexes)))
-
-		// Check URL
-		for _, regex := range r.filterRegexes {
-			// os.Stdout.WriteString(fmt.Sprintf("RequestFilter: Checking regex %d: %s\n", i, regex.String()))
-			if regex.MatchString(req.URL.String()) {
-				// os.Stdout.WriteString(fmt.Sprintf("RequestFilter: URL matched regex %d. Blocking request.\n", i))
-				http.Error(rw, "Request blocked by filter", http.StatusForbidden)
-				return
+		// Check URL path if not bodyOnly
+		if !r.bodyOnly {
+			for _, regex := range r.filterRegexes {
+				if regex.MatchString(req.URL.Path) {
+					r.block(rw)
+					return
+				}
 			}
 		}
-		// os.Stdout.WriteString("RequestFilter: URL did not match any regexes\n")
 
-		// Check body for POST and PUT requests
-		if req.Method == http.MethodPost || req.Method == http.MethodPut {
+		// Check body for POST, PUT, and PATCH requests if not pathOnly
+		if !r.pathOnly && (req.Method == http.MethodPost || req.Method == http.MethodPut || req.Method == http.MethodPatch) {
 			body, err := io.ReadAll(req.Body)
 			if err != nil {
-				// os.Stdout.WriteString(fmt.Sprintf("RequestFilter: Error reading request body: %v\n", err))
 				http.Error(rw, "Error reading request body", http.StatusInternalServerError)
 				return
 			}
 
 			for _, regex := range r.filterRegexes {
 				if regex.Match(body) {
-					// os.Stdout.WriteString(fmt.Sprintf("RequestFilter: Body matched regex %d. Blocking request.\n", i))
-					http.Error(rw, "Request blocked by filter", http.StatusForbidden)
+					r.block(rw)
 					return
 				}
 			}
-			// os.Stdout.WriteString("RequestFilter: Body did not match any regexes\n")
 
 			// Replace the body with a new ReadCloser
 			req.Body = io.NopCloser(bytes.NewReader(body))
 		}
-	} else {
-		// os.Stdout.WriteString("RequestFilter: No regexes configured\n")
 	}
 
-	// os.Stdout.WriteString("RequestFilter: Passing request to next handler\n")
 	r.next.ServeHTTP(rw, req)
+}
+
+func (r *RequestFilter) block(rw http.ResponseWriter) {
+	if r.httpErrorMessage == "" {
+		http.Error(rw, "Request blocked", http.StatusForbidden)
+	} else {
+		http.Error(rw, r.httpErrorMessage, http.StatusForbidden)
+	}
 }
